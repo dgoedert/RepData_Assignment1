@@ -1,0 +1,260 @@
+**RR - PEER ASSIGNMENT 1**
+========================================================
+## A. DATA INFO
+Dataset (from [RR webpage][ref]): activity monitoring, containing the variables:  
+    * steps: Number of steps taking in a 5-minute interval (missing values are coded as NA)  
+    * date: The date on which the measurement was taken in YYYY-MM-DD format  
+    * interval: Identifier for the 5-minute interval in which measurement was taken
+
+[ref]:https://class.coursera.org/repdata-003/human_grading/view/courses/972142/assessments/3/submissions
+
+```{r}
+data<-read.csv("~/Desktop/Coursera-RR/Exercises/Assignment1/activity.csv")
+str(data)
+```
+
+- R is reading variable *date* as factor; it should read as Date:
+```{r}
+data$date<-as.Date(data$date, format="%Y-%m-%d")
+str(data)
+# ok!
+```
+
+## B. NUMBER OF STEPS PER DAY
+
+For this task, first of all, I can reorganize the dataset as to show the total number of steps per day:
+
+```{r}
+# Vector - total number of steps:
+total<-tapply(data$steps, data$date, function(x)sum(x))
+head(total)
+totalsteps<-array(NA, c(length(total),1))
+for(i in 1:length(total)){
+    totalsteps[i]<-total[[i]]
+}
+head(totalsteps)
+
+# Vector - days:
+date_steps<-c(unique(data$date))
+head(date_steps)
+
+# Double-check type = Date:
+str(date_steps)
+# ok!
+```
+
+```{r}
+# Create new data frame:
+totalsteps_frame<-data.frame(date_steps,totalsteps)
+str(totalsteps_frame)
+```
+- For the plot, I will use the package 'ggplot2':
+```{r}
+require(ggplot2)
+```
+
+**B.1. Histogram; total # steps per day**
+```{r, fig.height=5, fig.width=7, message=FALSE}
+ggplot(aes(x=totalsteps), data=totalsteps_frame)+
+    geom_histogram(color="black", fill="white") + ylab("Frequency") + xlab("Total number of steps per day")
+```
+
+**B.2. Mean and median; total # steps per day**
+- Mean:
+```{r}
+mean(totalsteps_frame$totalsteps, na.rm=T)
+```
+The mean is `r mean(totalsteps_frame$totalsteps, na.rm=T)`.
+
+- Median:
+```{r}
+median(totalsteps_frame$totalsteps, na.rm=T)
+```
+The median is `r median(totalsteps_frame$totalsteps, na.rm=T)`.
+
+## C. AVERAGE DAILY ACTIVITY PATTERN
+For this task, I need the average of each first entry (i.e. first 5 min interval) of every day, the average of each second entry (i.e. second 5 min interval), etc.
+
+```{r}
+# Get average per interval:
+averages<-tapply(data$steps, data$interval, function(x)mean(x, na.rm=T))
+meansteps_interval<-array(NA, c(length(averages),1))
+for(i in 1:length(averages)){
+    meansteps_interval[i]<-averages[[i]]
+}
+head(meansteps_interval)
+
+# Vector - interval:
+interval<-unique(data$interval)
+str(interval)
+
+# Create new dataset:
+interval_frame<-data.frame(meansteps_interval, interval)
+str(interval_frame)
+```
+
+**C.1. Time series plot; average number of steps of each 5 min interval**
+```{r, fig.height=5, fig.width=7}
+ggplot(aes(x=interval, y=meansteps_interval), data=interval_frame)+
+    geom_line() + xlab("5 min interval")+ylab("Average number of steps")
+```
+
+**C.2. Which 5 min interval has the highest average # of steps?**
+```{r}
+(d<-interval_frame$interval[max(interval_frame$meansteps_interval)])
+```
+The interval `r d` is the one with the highest average number of steps.
+
+## D. IMPUTING NAs
+
+**D.1. Total number of NAs**
+```{r}
+missing<-which(is.na(data$steps)==T)
+length(missing)
+```
+The total number of missing values in the dataset is `r length(missing)`.
+
+**D.2. Fill in NAs with mean values**
+```{r}
+# New vector:
+steps2<-data$steps
+steps2[is.na(steps2)==T]<-mean(data$steps, na.rm=T)
+str(steps2)
+```
+
+**D.3. Create data set with ex. 2**
+```{r}
+data2<-data
+data2$steps<-steps2
+str(data2)
+```
+
+**D.4. Histogram total number of steps; report mean and median total number of steps/day; do these values differ from first part of the assignment (i.e. with NAs)? What is the impact of NAs?**  
+As before, I need a new dataset indicating the total number of steps; this time, however, I will start off with *data2*, the dataset in which NAs were filled in with the means.
+
+```{r}
+# Vector - total number of steps:
+total2<-tapply(data2$steps, data2$date, function(x)sum(x))
+totalsteps2<-array(NA, c(length(total2),1))
+for(i in 1:length(total2)){
+    totalsteps2[i]<-total2[[i]]
+}
+head(totalsteps2)
+
+# Vector - days = date_steps from section B
+# Create new dataset
+totalsteps_frame2<-data.frame(totalsteps2, date_steps)
+str(totalsteps_frame2)
+```
+
+- Histogram:
+```{r, message=FALSE}
+ggplot(aes(x=totalsteps2), data=totalsteps_frame2)+
+    geom_histogram(color="black", fill="white") + ylab("Frequency") + xlab("Total number of steps per day, no NAs")
+```
+
+- Mean:
+```{r}
+mean(totalsteps_frame2$totalsteps2)
+```
+The mean is `r mean(totalsteps_frame2$totalsteps2)`, and it is not differente than the mean obtained in section B. This is not surprising; considering how mean is calculated, if mean values are added to the data set, the mean should not change.
+
+- Median:
+```{r}
+median(totalsteps_frame2$totalsteps2)
+```
+The median is `r median(totalsteps_frame2$totalsteps2)`, which is slightly different than the original median obtained in section B (i.e. `r median(totalsteps_frame$totalsteps, na.rm=T)`). Considering that the original mean (`r mean(totalsteps_frame$totalsteps, na.rm=T)`) and median were similar, the inclusion of mean values in the data set would not be expected to considerably affect the median, as observed. 
+
+## E. WEEKDAYS vs. WEEKENDS
+(Use filled-in NAs data set -> data2)
+
+**1. Create variable with 2 factors: weekday and weekend**
+```{r}
+# Find days of the week:
+data2$whatdayistoday<-weekdays(data2$date)
+str(data2)
+
+# Create variable:
+data2$day<-data2$whatdayistoday
+data2$day[data2$day=="Saturday" | data2$day=="Sunday"]<-"weekend"
+data2$day[data2$day != "weekend"]<-"weekday"
+str(data2)
+
+# ok, but change to factors:
+data2$day<-as.factor(data2$day)
+```
+
+**2. Time series plot of the average number of steps per interval in weekdays & weekends**  
+First, I need a data set with the averages:
+```{r}
+# Vector - mean weekdays:
+wds<-tapply(data2$steps[data2$day=="weekday"], data2$interval[data2$day=="weekday"], function(x)mean(x))
+mean_weekdays<-array(NA, c(length(wds),1))
+for(i in 1:length(wds)){
+    mean_weekdays[i]<-wds[[i]]
+}
+head(mean_weekdays)
+
+# Vector - mean weekends:
+wks<-tapply(data2$steps[data2$day=="weekend"], data2$interval[data2$day=="weekend"], function(x)mean(x))
+mean_weekends<-array(NA, c(length(wks),1))
+for(i in 1:length(wks)){
+	mean_weekends[i]<-wks[[i]]
+}
+head(mean_weekends)
+
+# Vector - interval from before = interval
+# Dataset
+days_interval<-data.frame(interval, mean_weekdays, mean_weekends)
+str(days_interval)
+```
+
+- For multiple plots in a single window with ggplot, I need to use function multiplot (available from [cookbook-r][ref]).
+[ref]: http://www.cookbook-r.com/Graphs/Multiple_graphs_on_one_page_(ggplot2)
+
+```{r}
+multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
+  require(grid)
+
+  # Make a list from the ... arguments and plotlist
+  plots <- c(list(...), plotlist)
+
+  numPlots = length(plots)
+
+  # If layout is NULL, then use 'cols' to determine layout
+  if (is.null(layout)) {
+    # Make the panel
+    # ncol: Number of columns of plots
+    # nrow: Number of rows needed, calculated from # of cols
+    layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
+                    ncol = cols, nrow = ceiling(numPlots/cols))
+  }
+
+ if (numPlots==1) {
+    print(plots[[1]])
+
+  } else {
+    # Set up the page
+    grid.newpage()
+    pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
+
+    # Make each plot, in the correct location
+    for (i in 1:numPlots) {
+      # Get the i,j matrix positions of the regions that contain this subplot
+      matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
+
+      print(plots[[i]], vp = viewport(layout.pos.row = matchidx$row,
+                                      layout.pos.col = matchidx$col))
+    }
+  }
+}
+```
+
+- Time series for weekdays (top) and weekends (bottom):
+```{r}
+plot1<-ggplot(aes(x=interval, y=scale(mean_weekdays)), data=days_interval)+
+    geom_line() + xlab("5 min interval") + ylab("Mean number of steps on weekdays") + theme_bw()
+plot2<-ggplot(aes(x=interval, y=scale(mean_weekends)), data=days_interval)+
+	geom_line() + xlab("5 min interval") + ylab("Mean number of steps on weekends") + theme_bw()
+multiplot(plot1, plot2)
+```
